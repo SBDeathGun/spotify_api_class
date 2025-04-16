@@ -34,10 +34,18 @@ export class SpotifyClass {
         return req.data;
     }
     async getPlaylist(playlistname, author) {
-        let req = await axios.get(`https://api.spotify.com/v1/playlists/${(await this.searchPlaylist(playlistname))}`, {
+        let resSearch = (await this.searchPlaylist(playlistname));
+        let id = "";
+        if (author) {
+            id = (await findPlaylistAuthor(resSearch, author, await this.getToken())).id;
+        }
+        else {
+            id = resSearch.items[0].id;
+        }
+        let res = await axios.get(`https://api.spotify.com/v1/playlists/${id}`, {
             headers: { Authorization: `Bearer ${await this.getToken()}` }
         });
-        return req.data;
+        return res.data;
     }
     async search(query, type, offset = 0) {
         let res = await axios.get(`https://api.spotify.com/v1/search?q=${query}&type=${type}&offset=${offset}`, {
@@ -58,15 +66,14 @@ export class SpotifyClass {
     }
     async searchPlaylist(query, offset = 0) {
         let control = await this.search(query, "playlist", offset);
-        return control.items;
+        return control;
     }
 }
-function instanceofArtist(obj) {
-    return typeof obj == "object" && obj.type && obj.type === "artist";
-}
-function instanceofAlbum(obj) {
-    return typeof obj == "object" && obj.type && obj.type === "album";
-}
-function instanceofPlaylist(obj) {
-    return typeof obj == "object" && obj.type && obj.type === "playslist";
+async function findPlaylistAuthor(resSearch, author, token) {
+    let items = resSearch.items;
+    for (let el of items) {
+        if (el && el.owner.display_name == author)
+            return el;
+    }
+    return findPlaylistAuthor(await axios.get(resSearch.next, { headers: { Authorization: `Baerer: ${token}` } }), author, token);
 }

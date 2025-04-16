@@ -34,7 +34,11 @@ export interface Playlist{
   owner:{display_name:string,
          id:string
   },
-
+  tracks:{
+    items:Array<{track:Track}>
+    total:number
+    next:string
+  }
 }
 interface Track{
   name:string
@@ -96,12 +100,19 @@ export class SpotifyClass{
 
     return req.data
   }
-  async getPlaylist(playlistname:string,author:string){
-    let req = await axios.get(`https://api.spotify.com/v1/playlists/${(await this.searchPlaylist(playlistname))}`,
+  async getPlaylist(playlistname:string,author?:string){
+    let resSearch:Searchres<Playlist> = (await this.searchPlaylist(playlistname))
+    let id:string=""
+    if(author){
+      id = (await findPlaylistAuthor(resSearch,author,await this.getToken())).id
+    }else{
+      id=resSearch.items[0].id
+    }
+    let res = await axios.get(`https://api.spotify.com/v1/playlists/${id}`,
     {
       headers:{Authorization:`Bearer ${await this.getToken()}`} 
     })
-    return req.data
+    return res.data
   }
   async search<T>(query:string,type:string,offset:number=0):Promise<Searchres<T>>{
     
@@ -125,20 +136,15 @@ export class SpotifyClass{
     let control:Searchres<Album> = await this.search(query,"album",offset)
     return control.items
   }
-  async searchPlaylist(query:string,offset:number=0):Promise<Array<Playlist>>{
+  async searchPlaylist(query:string,offset:number=0):Promise<Searchres<Playlist>>{
     let control:Searchres<Playlist> = await this.search(query,"playlist",offset)
-    return control.items
+    return control
   }
 }
-
-
-function instanceofArtist(obj: any):obj is Artist{
-  return typeof obj == "object" && obj.type && obj.type==="artist"
+async function findPlaylistAuthor(resSearch:Searchres<Playlist>,author:string,token:string):Promise<Playlist>{
+  let items:Array<Playlist> = resSearch.items
+  for(let el of items){
+    if(el && el.owner.display_name==author) return el
+  }
+  return findPlaylistAuthor(await axios.get(resSearch.next,{headers:{Authorization:`Baerer: ${token}`}}),author,token)
 }
-function instanceofAlbum(obj: any):obj is Album{
-  return typeof obj == "object" && obj.type && obj.type==="album"
-}
-function instanceofPlaylist(obj: any):obj is Playlist{
-  return typeof obj == "object" && obj.type && obj.type==="playslist"
-}
-
